@@ -1,0 +1,357 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&display=swap');
+
+:root {
+    --bg-color: #1a1a1a;
+    --surface-color: #2c2c2c;
+    --primary-color: #4CAF50;
+    --primary-variant-color: #388E3C;
+    --secondary-color: #03dac6;
+    --text-color: #e0e0e0;
+    --text-color-dark: #a0a0a0;
+    --border-color: #444;
+    --board-bg: #c6a779;
+    --shadow-color: rgba(0, 0, 0, 0.5);
+}
+
+body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    margin: 0;
+}
+
+header {
+    width: 100%;
+    max-width: 700px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.home-link {
+    font-size: 2.5rem;
+    font-weight: 700;
+    text-decoration: none;
+    color: var(--text-color);
+    letter-spacing: 2px;
+    transition: color 0.3s ease;
+}
+
+.home-link:hover {
+    color: var(--primary-color);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.mode-section {
+    width: 100%;
+    max-width: 700px;
+    margin-bottom: 20px;
+    padding: 30px;
+    background: var(--surface-color);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 16px var(--shadow-color);
+}
+
+h2 {
+    text-align: center;
+    font-size: 2rem;
+    margin-bottom: 25px;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+.controls, .game-controls, .create-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+button, input[type="text"] {
+    background-color: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    padding: 12px 15px;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s, border-color 0.3s;
+    -webkit-appearance: none; /* For iOS */
+    -moz-appearance: none;
+    appearance: none;
+}
+
+select {
+    background-color: transparent;
+    color: var(--text-color); /* Explicitly set color for select */
+    border: 1px solid var(--border-color);
+    padding: 12px 15px;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s, border-color 0.3s;
+    -webkit-appearance: none; /* For iOS */
+    -moz-appearance: none;
+    appearance: none;
+}
+
+select option {
+    color: #000; /* 黒い文字 */
+    background-color: #fff; /* 白い背景 */
+}
+
+button {
+    background-color: var(--primary-variant-color);
+    border-color: var(--primary-variant-color);
+    font-weight: bold;
+}
+
+button:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+select {
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23e0e0e0%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.4-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E');
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    background-size: .65em auto;
+    padding-right: 40px;
+}
+
+input[type="text"]:focus, select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.board-container {
+    display: flex;
+    justify-content: center;
+    margin: 30px 0;
+}
+
+.go-board {
+    width: 455px; /* 13 * 35px */
+    height: 455px; /* 13 * 35px */
+    background-color: var(--board-bg);
+    border: 2px solid #1a1a1a;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.4), inset 0 0 10px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.go-board-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.go-board-svg line {
+    stroke: white; /* Changed to white for maximum visibility */
+    stroke-width: 1.5px;
+}
+
+.go-board .square {
+    position: absolute;
+    width: 35px;
+    height: 35px;
+}
+
+.stone {
+    transition: transform 0.1s ease-out;
+}
+
+.stone.black {
+    fill: #111;
+    filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.5));
+}
+
+.stone.white {
+    fill: #f5f5f5;
+    stroke: #888;
+    stroke-width: 1px;
+    filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.4));
+}
+
+.status-message, .game-info p {
+    text-align: center;
+    font-size: 1.2rem;
+    margin: 15px 0;
+    color: var(--text-color-dark);
+}
+
+.game-info {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 20px;
+}
+
+.create-mode-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+
+#createModeBtn {
+    width: 60px;
+    height: 60px;
+    font-size: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.instructions {
+    text-align: center;
+    color: var(--text-color-dark);
+    margin-bottom: 15px;
+}
+
+#recordedSolutionMoves {
+    color: var(--secondary-color);
+    font-weight: bold;
+}
+
+.solution-tree {
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    min-height: 100px;
+    background-color: #222;
+    overflow: auto;
+}
+
+.solution-tree ul {
+    list-style-type: none;
+    padding-left: 20px;
+    margin: 0;
+}
+
+.solution-tree li {
+    padding: 5px 0;
+}
+
+.solution-tree .move-node {
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-block;
+    border: 1px solid transparent;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.solution-tree .move-node:hover {
+    background-color: #444;
+}
+
+.solution-tree .move-node.selected {
+    background-color: var(--primary-variant-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.solution-tree .move-node.black { color: #e0e0e0; }
+.solution-tree .move-node.white { color: #d0d0d0; }
+
+.solution-tree .move-node.correct {
+    background-color: #28a745; /* Green for correct */
+    color: white;
+}
+
+.solution-tree .move-node.incorrect {
+    background-color: #dc3545; /* Red for incorrect */
+    color: white;
+}
+
+.judgement-controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.judgement-controls button {
+    flex: 1;
+    padding: 10px;
+    font-weight: bold;
+}
+
+.judgement-controls #markCorrectBtn {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.judgement-controls #markCorrectBtn:hover {
+    background-color: #218838;
+    border-color: #1e7e34;
+}
+
+.judgement-controls #markFailureBtn {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.judgement-controls #markFailureBtn:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+.problem-list-item {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.problem-list-item:hover {
+    background-color: #3a3a3a;
+}
+
+.problem-info {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.mini-go-board-container {
+    width: 100px; /* Adjust as needed */
+    height: 100px; /* Adjust as needed */
+    overflow: hidden; /* Hide overflow from SVG */
+    border: 1px solid #555;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.mini-go-board {
+    width: 100px; /* Set fixed width */
+    height: 100px; /* Set fixed height */
+    position: relative; /* Add position relative */
+    overflow: hidden; /* Ensure content outside bounds is hidden */
+    transform: scale(calc(100 / 455)); /* Scale down to fit 100px container */
+    transform-origin: top left;
+}
+
+.mini-go-board .go-board-svg {
+    width: 455px; /* Full size of a 13x13 board (13 * 35px) */
+    height: 455px; /* Full size of a 13x13 board (13 * 35px) */
+    /* transform: scale(calc(100 / 455)); /* Scale down to fit 100px container */ /* Removed */
+    /* transform-origin: top left; */ /* Removed */
+}

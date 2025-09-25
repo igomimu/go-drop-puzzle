@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>詰めトレ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <a href="index.html" class="home-link">詰めトレ</a>
+    </header>
+
+    <div id="createModeToggle" class="create-mode-toggle">
+        <button id="createModeBtn" title="問題を登録する">＋</button>
+    </div>
+
+    <div id="startScreen" class="mode-section">
+        <h2>モード選択</h2>
+        <div class="mode-controls">
+            <label for="mainDifficultySelect">棋力選択:</label>
+            <select id="mainDifficultySelect">
+                <option value="all">すべて</option>
+                <option value="15k">15級</option>
+                <option value="14k">14級</option>
+                <option value="13k">13級</option>
+                <option value="12k">12級</option>
+                <option value="11k">11級</option>
+                <option value="10k">10級</option>
+                <option value="9k">9級</option>
+                <option value="8k">8級</option>
+                <option value="7k">7級</option>
+                <option value="6k">6級</option>
+                <option value="5k">5級</option>
+                <option value="4k">4級</option>
+                <option value="3k">3級</option>
+                <option value="2k">2級</option>
+                <option value="1k">1級</option>
+                <option value="1d">1段</option>
+                <option value="2d">2段</option>
+                <option value="3d">3段</option>
+                <option value="4d">4段</option>
+                <option value="5d">5段</option>
+                <option value="6d">6段</option>
+                <option value="7d">7段</option>
+            </select>
+        </div>
+        <div class="controls">
+            <button id="startNormalModeBtn">通常モード</button>
+            <button id="startTimeAttackModeBtn">タイムアタック</button>
+        </div>
+        <div class="board-container">
+            <div id="startScreenBoard" class="go-board"><svg class="go-board-svg"></svg></div>
+        </div>
+    </div>
+
+    <div id="normalMode" class="mode-section hidden">
+        <h2>通常モード</h2>
+        <div class="board-container">
+            <div id="goBoard" class="go-board"><svg class="go-board-svg"></svg></div>
+        </div>
+        <div class="status-message" id="normalModeStatus"></div>
+        <div id="problemListContainer"></div>
+        <div class="problem-navigation">
+            <button id="prevProblemBtn">前の問題</button>
+            <button id="nextProblemBtn">次の問題</button>
+        </div>
+    </div>
+
+    
+
+    <div id="timeAttackMode" class="mode-section hidden">
+        <h2>タイムアタック</h2>
+        <div class="board-container">
+            <div id="gameBoard" class="go-board"><svg class="go-board-svg"></svg></div>
+        </div>
+        <div class="status-message" id="timeAttackStatus"></div>
+        <div class="game-info">
+            <p>残り時間: <span id="timeRemaining">00:30</span></p>
+            <p>問題: <span id="currentProblemCount">0</span> / <span id="totalProblemCount">0</span></p>
+            <p>正解数: <span id="correctAnswers">0</span></p>
+        </div>
+        <div class="game-controls">
+            <button id="startGameBtn">スタート</button>
+            <button id="resetGameBtn">リセット</button>
+        </div>
+    </div>
+
+    <div id="createMode" class="mode-section hidden">
+        <h2>問題登録</h2>
+        <div class="board-container">
+            <div id="createBoard" class="go-board"><svg class="go-board-svg"></svg></div>
+        </div>
+        <div class="create-controls">
+            <div class="mode-selection-controls">
+                <button id="initialPlacementModeBtn" class="active">初期配置モード</button>
+                <button id="solutionModeBtn">正解手順モード</button>
+            </div>
+
+            <div id="initialPlacementControls">
+                 <p class="instructions">左クリックで黒石、右クリックで白石を配置/削除</p>
+            </div>
+
+            <div id="solutionControls" class="hidden">
+                <div class="solution-recording-controls">
+                    <p class="instructions">クリックで正解手順を記録 (黒→白の順)</p>
+                    <button id="undoLastSolutionMoveBtn">最後の手を元に戻す</button>
+                    <button id="goUpTreeBtn">親手順に戻る</button>
+                    <div class="judgement-controls">
+                        <button id="markCorrectBtn">正解としてマーク</button>
+                        <button id="markFailureBtn">失敗としてマーク</button>
+                    </div>
+                    <p>記録された手順:</p>
+                    <div id="solutionTreeContainer" class="solution-tree"></div>
+                </div>
+            </div>
+
+            <div class="problem-details">
+                <label for="authorName">作者名:</label>
+                <input type="text" id="authorName">
+                <label for="authorRank">段位 (プロの場合):</label>
+                <input type="text" id="authorRank">
+
+                <label for="difficulty">難易度:</label>
+                <select id="difficulty">
+                    <option value="15k">15級</option>
+                    <option value="14k">14級</option>
+                    <option value="13k">13級</option>
+                    <option value="12k">12級</option>
+                    <option value="11k">11級</option>
+                    <option value="10k">10級</option>
+                    <option value="9k">9級</option>
+                    <option value="8k">8級</option>
+                    <option value="7k">7級</option>
+                    <option value="6k">6級</option>
+                    <option value="5k">5級</option>
+                    <option value="4k">4級</option>
+                    <option value="3k">3級</option>
+                    <option value="2k">2級</option>
+                    <option value="1k">1級</option>
+                    <option value="1d">1段</option>
+                    <option value="2d">2段</option>
+                    <option value="3d">3段</option>
+                    <option value="4d">4段</option>
+                    <option value="5d">5段</option>
+                    <option value="6d">6段</option>
+                    <option value="7d">7段</option>
+                </select>
+
+                <div class="final-judgment-controls">
+                    <label for="finalJudgment">最終判定:</label>
+                    <select id="finalJudgment">
+                        <option value="">選択してください</option>
+                        <option value="live">活</option>
+                        <option value="die">死</option>
+                        <option value="ko">コウ</option>
+                        <option value="seki">セキ</option>
+                    </select>
+                </div>
+            </div>
+
+            <input type="hidden" id="playerToMove" value="1">
+
+            <button id="saveProblemBtn">問題を登録</button>
+            <button id="clearBoardBtn">盤面をクリア</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
