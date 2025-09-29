@@ -117,6 +117,23 @@ button {
 button:hover {
     background-color: var(--primary-color);
     border-color: var(--primary-color);
+}.button-link {
+    display: block;
+    text-align: center;
+    text-decoration: none;
+    background-color: var(--secondary-color);
+    border: 1px solid var(--secondary-color);
+    color: var(--bg-color);
+    padding: 12px 15px;
+    border-radius: 6px;
+    font-weight: bold;
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+.button-link:hover {
+    background-color: #00b5a7;
+    border-color: #00b5a7;
+    color: var(--bg-color);
 }
 
 select {

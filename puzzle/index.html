@@ -1,35 +1,32 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Go Drop Puzzler</title>
-    <link rel="stylesheet" href="falling-go.css">
+    <title>いごぽん</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header class="app-header">
-        <div class="header-left">
-            <a class="home-link" href="index.html">Goトレーナーに戻る</a>
-        </div>
         <div class="header-title">
-            <h1>Go Drop Puzzler</h1>
+            <h1>いごぽん</h1>
             <button id="headerStartBtn" type="button" class="header-start-btn">GO!</button>
         </div>
     </header>
     <main class="layout">
         <section class="board-panel">
-            <canvas id="board" width="300" height="600" aria-label="Playfield"></canvas>
-            <div id="overlay" class="overlay hidden">
+            <canvas id="board" width="300" height="600" aria-label="プレイフィールド"></canvas>
+            <div id="overlay" class="overlay hidden" role="status" aria-live="polite">
                 <h2 id="overlayTitle">ゲーム終了</h2>
                 <div class="overlay-score">
-                    <span class="overlay-label">今日のハイスコア</span>
+                    <span class="overlay-label">今回のハイスコア</span>
                     <span id="finalScore" class="overlay-value">0</span>
                 </div>
                 <div class="overlay-score secondary">
-                    <span class="overlay-label">これまでのハイスコア</span>
+                    <span class="overlay-label">自己最高スコア</span>
                     <span id="bestScore" class="overlay-value">0</span>
                 </div>
-                <p id="overlayDetail" class="overlay-detail">捕獲の詳細がここに表示されます。</p>
+                <p id="overlayDetail" class="overlay-detail">詳細情報はここに表示されます。</p>
                 <button id="restartBtn" type="button">もう一度プレイ</button>
             </div>
         </section>
@@ -42,13 +39,24 @@
             <div class="mobile-row">
                 <button id="mobileSoftDropBtn" type="button" class="mobile-btn" aria-label="ソフトドロップ">&#x2193;</button>
                 <button id="mobileHardDropBtn" type="button" class="mobile-btn" aria-label="ハードドロップ">&#x21D3;</button>
-                <button id="mobileポーズBtn" type="button" class="mobile-btn" aria-label="一時停止">&#x23F8;</button>
+                <button id="mobilePauseBtn" type="button" class="mobile-btn" aria-label="一時停止">&#x23F8;</button>
             </div>
         </section>
         <aside class="sidebar">
             <section class="next-panel">
                 <h2>次のグループ</h2>
-                <canvas id="nextPiece" width="150" height="150" aria-label="Next piece preview"></canvas>
+                <canvas id="nextPiece" width="150" height="150" aria-label="次のピースプレビュー"></canvas>
+            </section>
+            <section class="player-panel">
+                <h2>プレイヤー</h2>
+                <label for="playerNameInput" class="player-name-label">名前</label>
+                <input type="text" id="playerNameInput" maxlength="20" placeholder="プレイヤー名" autocomplete="name">
+            </section>
+            <section class="leaderboard-panel" aria-live="polite">
+                <h2>本日のハイスコア</h2>
+                <p id="leaderboardDate" class="leaderboard-date"></p>
+                <p id="leaderboardEmpty" class="leaderboard-empty">まだスコアがありません。</p>
+                <ol id="dailyLeaderboard" class="leaderboard-list"></ol>
             </section>
             <section class="stats-panel">
                 <h2>ステータス</h2>
@@ -58,31 +66,31 @@
                     <li>チェイン: <span id="chainValue">0</span></li>
                     <li>黒の捕獲数: <span id="blackCaptureValue">0</span></li>
                     <li>白の捕獲数: <span id="whiteCaptureValue">0</span></li>
-                    <li>配置した石: <span id="piecesValue">0</span></li>
+                    <li>配置したピース: <span id="piecesValue">0</span></li>
                 </ul>
             </section>
             <section class="control-panel">
                 <button id="startBtn" type="button">スタート</button>
                 <button id="pauseBtn" type="button" disabled>ポーズ</button>
-                <div id="statusMessage" class="status-message"></div>
+                <div id="statusMessage" class="status-message" aria-live="polite"></div>
             </section>
             <section class="help-panel">
                 <h2>遊び方</h2>
-                <p>落下する石を操って相手の石を囲み、捕獲して得点を稼ぎましょう。</p>
+                <p>石を落として連結させ、囲んだ石を捕獲すると得点が入ります。</p>
                 <ul>
-                    <li>← / →：左右に移動</li>
-                    <li>↑：回転</li>
-                    <li>↓：ソフトドロップ</li>
-                    <li>スペース：ハードドロップ</li>
-                    <li>P: ポーズ or resume</li>
+                    <li>&#x2190; / &#x2192;: 左右に移動</li>
+                    <li>&#x2191;: 回転</li>
+                    <li>&#x2193;: ソフトドロップ</li>
+                    <li>スペース: ハードドロップ</li>
+                    <li>P: 一時停止 / 再開</li>
                 </ul>
-                <p>黒石は白石を、白石は黒石を囲んで捕獲します。連続捕獲で倍率が上昇し、5ピースごとに落下速度が上がります。</p>
+                <p>黒石は攻め、白石は守り。5行連続で捕獲するとレベルが上がり、落下速度が速くなります。</p>
             </section>
         </aside>
     </main>
     <footer class="app-footer">
-        <p>Prototype Tetris-Go crossover for browser play.</p>
+        <p>ブラウザで遊べるテトリス×囲碁のプロトタイプです。</p>
     </footer>
-    <script type="module" src="falling-go.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>

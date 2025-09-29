@@ -1,4 +1,4 @@
-﻿const ROWS = 20;
+const ROWS = 20;
 const COLS = 10;
 const CELL_SIZE = 30;
 const BASE_DROP_INTERVAL = 900;
@@ -38,6 +38,10 @@ const mobileSoftDropBtn = document.getElementById('mobileSoftDropBtn');
 const mobileHardDropBtn = document.getElementById('mobileHardDropBtn');
 const mobilePauseBtn = document.getElementById('mobilePauseBtn');
 const headerStartBtn = document.getElementById('headerStartBtn');
+const playerNameInput = document.getElementById('playerNameInput');
+const dailyLeaderboardList = document.getElementById('dailyLeaderboard');
+const leaderboardEmpty = document.getElementById('leaderboardEmpty');
+const leaderboardDateLabel = document.getElementById('leaderboardDate');
 
 const PAUSE_ICON = '\u23F8';
 const RESUME_ICON = '\u25B6';
@@ -59,9 +63,28 @@ const CAPTURE_EFFECT_CONFIG = {
     }
 };
 
+const CAPTURE_COLOR_ANIM_DURATION = 400;
+const CAPTURE_LINE_ANIM_DURATION = 500;
+const CAPTURE_HIGHLIGHT_DURATION = CAPTURE_LINE_ANIM_DURATION;
+const captureHighlights = new Map();
+const captureLineEffects = new Map();
+let captureGroupSequence = 0;
+let captureResolutionInProgress = false;
+const POINTER_CLICK_SUPPRESS_MS = 320;
+let lastPointerDownTime = 0;
+const CAPTURE_LINE_COLORS = {
+    1: { stroke: 'rgba(58, 137, 255, 0.88)', shadow: 'rgba(152, 206, 255, 0.95)' },
+    2: { stroke: 'rgba(255, 176, 66, 0.92)', shadow: 'rgba(255, 220, 160, 0.95)' }
+};
+
+
 const SWIPE_THRESHOLD = CELL_SIZE;
 const effects = [];
 const HIGH_SCORE_KEY = 'goDropHighScore';
+const PLAYER_NAME_KEY = 'goDropPlayerName';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbwcZpx3SLF1z8jTOL6lHeayA4eWzIDGAjzc_fXIffIGyAOliZuiMxVrfV3682ACfT5g/exec';
+const LEADERBOARD_LIMIT = 5;
+const LEADERBOARD_TIMEOUT_MS = 6000;
 
 function configureCanvasResolution(canvasElement, context, targetWidth, targetHeight) {
     const ratio = window.devicePixelRatio || 1;
@@ -102,11 +125,200 @@ function saveHighScore(value) {
         // ignore storage failures
     }
 }
+function sanitizePlayerName(value) {
+    if (!value) {
+        return '';
+    }
+    return value
+        .replace(/[\r\n\t]/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/[<>]/g, '')
+        .trim()
+        .slice(0, 20);
+}
 
+function loadPlayerName() {
+    try {
+        const stored = localStorage.getItem(PLAYER_NAME_KEY);
+        return sanitizePlayerName(stored);
+    } catch (error) {
+        return '';
+    }
+}
+
+function savePlayerName(name) {
+    try {
+        localStorage.setItem(PLAYER_NAME_KEY, sanitizePlayerName(name));
+    } catch (error) {
+        // ignore storage issues
+    }
+}
+
+function getTodayKey() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function formatLeaderboardDate(key) {
+    if (!key) {
+        return '';
+    }
+    const [year, month, day] = key.split('-');
+    const monthNum = parseInt(month, 10) || 0;
+    const dayNum = parseInt(day, 10) || 0;
+    return `${year}年${monthNum}月${dayNum}日`;
+}
+
+
+function getActivePlayerName() {
+    const current = playerNameInput ? sanitizePlayerName(playerNameInput.value) : playerName;
+    const resolved = current || playerName || 'プレイヤー';
+    return resolved;
+}
+
+async function refreshLeaderboard() {
+    const todayKey = getTodayKey();
+    if (leaderboardDateLabel) {
+        leaderboardDateLabel.textContent = formatLeaderboardDate(todayKey);
+    }
+
+    if (!dailyLeaderboardList) {
+        return;
+    }
+
+    if (leaderboardEmpty) {
+        leaderboardEmpty.textContent = '読み込み中…';
+        leaderboardEmpty.classList.remove('hidden');
+    }
+
+    try {
+        const useAbort = typeof AbortController !== 'undefined';
+        const controller = useAbort ? new AbortController() : null;
+        const timeoutId = useAbort ? setTimeout(() => controller.abort(), LEADERBOARD_TIMEOUT_MS) : null;
+        const response = await fetch(`${API_BASE}?date=${encodeURIComponent(todayKey)}&limit=${LEADERBOARD_LIMIT}`, {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-store',
+            signal: controller ? controller.signal : undefined
+        });
+        if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+        }
+        if (!response.ok) {
+            throw new Error(`Leaderboard request failed: ${response.status}`);
+        }
+        const payload = await response.json();
+        const entries = Array.isArray(payload.entries) ? payload.entries : [];
+        renderLeaderboard(entries);
+    } catch (error) {
+        console.error('Failed to load leaderboard', error);
+        renderLeaderboard([]);
+        if (leaderboardEmpty) {
+            leaderboardEmpty.textContent = 'ランキングを読み込めませんでした。';
+            leaderboardEmpty.classList.remove('hidden');
+        }
+    }
+}
+
+function renderLeaderboard(entries) {
+    if (!dailyLeaderboardList) {
+        return;
+    }
+    dailyLeaderboardList.innerHTML = '';
+    if (!entries || entries.length === 0) {
+        if (leaderboardEmpty) {
+            leaderboardEmpty.textContent = 'まだスコアがありません。';
+            leaderboardEmpty.classList.remove('hidden');
+        }
+        return;
+    }
+    if (leaderboardEmpty) {
+        leaderboardEmpty.classList.add('hidden');
+    }
+    entries.slice(0, LEADERBOARD_LIMIT).forEach((entry, index) => {
+        const item = document.createElement('li');
+        const rank = document.createElement('span');
+        rank.className = 'rank';
+        rank.textContent = String(index + 1);
+        const name = document.createElement('span');
+        name.className = 'name';
+        const safeName = sanitizePlayerName(entry.name) || 'プレイヤー';
+        name.textContent = safeName;
+        const score = document.createElement('span');
+        score.className = 'score';
+        const scoreValue = Number.isFinite(entry.score) ? Number(entry.score) : 0;
+        score.textContent = scoreValue.toLocaleString('ja-JP');
+        item.append(rank, name, score);
+        dailyLeaderboardList.appendChild(item);
+    });
+}
+
+function submitScore(finalScore) {
+    if (!Number.isFinite(finalScore) || finalScore <= 0) {
+        refreshLeaderboard();
+        return;
+    }
+
+    const payload = {
+        name: getActivePlayerName(),
+        score: Math.floor(finalScore),
+        origin: location.hostname
+    };
+
+    playerName = payload.name;
+    savePlayerName(playerName);
+    if (playerNameInput) {
+        playerNameInput.value = playerName;
+    }
+
+    const useAbort = typeof AbortController !== 'undefined';
+    const controller = useAbort ? new AbortController() : null;
+    const timeoutId = useAbort ? setTimeout(() => controller.abort(), LEADERBOARD_TIMEOUT_MS) : null;
+
+    fetch(API_BASE, {
+        method: 'POST',
+        mode: 'cors',
+        cache: 'no-store',
+        body: JSON.stringify(payload),
+        signal: controller ? controller.signal : undefined
+    })
+        .catch(error => {
+            console.error('Failed to submit score', error);
+            setStatusMessage('スコア送信に失敗しました。通信状況を確認してください。');
+        })
+        .finally(() => {
+            if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+            }
+            refreshLeaderboard();
+        });
+}
 let highScore = loadHighScore();
 if (bestScoreValue) {
     bestScoreValue.textContent = highScore.toLocaleString('en-US');
 }
+
+let playerName = loadPlayerName() || 'プレイヤー';
+if (playerNameInput) {
+    const applyAndPersist = (persist) => {
+        playerName = sanitizePlayerName(playerNameInput.value) || 'プレイヤー';
+        playerNameInput.value = playerName;
+        if (persist) {
+            savePlayerName(playerName);
+        }
+    };
+    playerNameInput.value = playerName;
+    playerNameInput.addEventListener('input', () => {
+        playerName = sanitizePlayerName(playerNameInput.value) || playerName;
+    });
+    playerNameInput.addEventListener('change', () => applyAndPersist(true));
+    playerNameInput.addEventListener('blur', () => applyAndPersist(true));
+}
+refreshLeaderboard();
+
 
 configureCanvasResolution(canvas, ctx, BASE_BOARD_WIDTH, BASE_BOARD_HEIGHT);
 configureCanvasResolution(nextCanvas, nextCtx, BASE_PREVIEW_WIDTH, BASE_PREVIEW_HEIGHT);
@@ -306,6 +518,9 @@ function clearBoard() {
 function startGame() {
     clearBoard();
     effects.length = 0;
+    captureHighlights.clear();
+    captureLineEffects.clear();
+    captureResolutionInProgress = false;
     score = 0;
     level = 1;
     chain = 0;
@@ -320,12 +535,12 @@ function startGame() {
     nextPiece = instantiatePiece(randomTemplate());
     overlay.classList.add('hidden');
     pauseBtn.disabled = false;
-    pauseBtn.textContent = 'Pause';
-    startBtn.textContent = 'Restart';
+    pauseBtn.textContent = 'ポーズ';
+    startBtn.textContent = 'リスタート';
     if (headerStartBtn) {
-        headerStartBtn.textContent = 'Restart';
+        headerStartBtn.textContent = 'リスタート';
     }
-    setStatusMessage('New match. Surround to capture.');
+    setStatusMessage('新しい対局開始。囲んで捕獲しよう。');
     updateStats();
     updatePreview();
     spawnNewPiece();
@@ -339,7 +554,7 @@ function endGame(reason) {
     gameActive = false;
     paused = false;
     pauseBtn.disabled = true;
-    pauseBtn.textContent = 'Pause';
+    pauseBtn.textContent = 'ポーズ';
     overlayTitle.textContent = reason;
     const formattedScore = score.toLocaleString('en-US');
     overlayDetail.textContent = `Score: ${formattedScore} | Chains: ${chain} | Captures B:${captures.black} W:${captures.white}`;
@@ -353,12 +568,15 @@ function endGame(reason) {
     if (bestScoreValue) {
         bestScoreValue.textContent = highScore.toLocaleString('en-US');
     }
+    submitScore(score);
+    captureHighlights.clear();
+    captureLineEffects.clear();
     overlay.classList.remove('hidden');
-    startBtn.textContent = 'Start Game';
+    startBtn.textContent = 'スタート';
     if (headerStartBtn) {
-        headerStartBtn.textContent = 'GO';
+        headerStartBtn.textContent = 'GO!';
     }
-    setStatusMessage('Game over.');
+    setStatusMessage('ゲーム終了。');
     refreshMobileControls();
 }
 
@@ -379,7 +597,7 @@ function spawnNewPiece() {
 
     if (!isValidPosition(currentPiece, 0, 0)) {
         currentPiece = null;
-        endGame('Board Filled');
+        endGame('盤面が埋まりました');
         return false;
     }
 
@@ -435,14 +653,15 @@ function hardDrop() {
 }
 
 function lockPiece() {
-    if (!currentPiece) {
+    if (!currentPiece || captureResolutionInProgress) {
         return;
     }
 
+    const placedPiece = currentPiece;
     let overflow = false;
-    currentPiece.cells.forEach(cell => {
-        const row = currentPiece.position.row + cell.row;
-        const col = currentPiece.position.col + cell.col;
+    placedPiece.cells.forEach(cell => {
+        const row = placedPiece.position.row + cell.row;
+        const col = placedPiece.position.col + cell.col;
         if (row < 0) {
             overflow = true;
             return;
@@ -451,74 +670,90 @@ function lockPiece() {
     });
 
     if (overflow) {
-        endGame('Board Filled');
+        endGame('盤面が埋まりました');
         return;
     }
 
+    currentPiece = null;
     applyGravity();
 
-    const { totalRemoved, captureTotals, removedStones } = settleBoard();
+    captureResolutionInProgress = true;
+    settleBoardWithHighlights(result => {
+        const { totalRemoved, captureTotals, removedStones } = result;
 
-    if (totalRemoved > 0) {
-        chain += 1;
-        const chainMultiplier = 1 + (chain - 1) * 0.5;
-        score += Math.floor(totalRemoved * 60 * chainMultiplier);
-        captures.black += captureTotals.black;
-        captures.white += captureTotals.white;
-        spawnCaptureEffects(removedStones);
-        setStatusMessage(`Captured ${totalRemoved} stones. Chain x${chain}`);
-    } else {
-        chain = 0;
-        setStatusMessage('Stones placed. No capture.');
-    }
+        if (totalRemoved > 0) {
+            chain += 1;
+            const chainMultiplier = 1 + (chain - 1) * 0.5;
+            score += Math.floor(totalRemoved * 60 * chainMultiplier);
+            captures.black += captureTotals.black;
+            captures.white += captureTotals.white;
+            spawnCaptureEffects(removedStones);
+            setStatusMessage(`${totalRemoved}個を捕獲。チェインx${chain}。`);
+        } else {
+            chain = 0;
+            setStatusMessage('石を配置。捕獲なし。');
+        }
 
-    piecesPlaced += 1;
-    if (piecesPlaced % 5 === 0) {
-        level += 1;
-        dropInterval = Math.max(220, BASE_DROP_INTERVAL - (level - 1) * 80);
-        setStatusMessage(`Level ${level}. Drop ${(dropInterval / 1000).toFixed(2)}s.`);
-    }
+        piecesPlaced += 1;
+        if (piecesPlaced % 5 === 0) {
+            level += 1;
+            dropInterval = Math.max(220, BASE_DROP_INTERVAL - (level - 1) * 80);
+            setStatusMessage(`レベル${level}。落下間隔 ${(dropInterval / 1000).toFixed(2)}秒。`);
+        }
 
-    updateStats();
+        updateStats();
+        captureResolutionInProgress = false;
 
-    if (!spawnNewPiece()) {
+        if (!spawnNewPiece()) {
+            refreshMobileControls();
+            return;
+        }
         refreshMobileControls();
-        return;
-    }
-    refreshMobileControls();
+    });
 }
 
-function settleBoard() {
-    let totalRemoved = 0;
-    let aggregateCaptures = { black: 0, white: 0 };
-    let loopGuard = 0;
-    const removedStones = [];
+function settleBoardWithHighlights(onComplete) {
+    const totals = {
+        totalRemoved: 0,
+        captureTotals: { black: 0, white: 0 },
+        removedStones: []
+    };
 
-    while (loopGuard < ROWS) {
-        const { removed, captureTotals, removedStones: capturedThisPass } = resolveCapturesOnce();
-        if (removed === 0) {
-            break;
+    function processLoop() {
+        const result = resolveCapturesOnce();
+        if (result.groups.length === 0) {
+            onComplete(totals);
+            return;
         }
-        totalRemoved += removed;
-        aggregateCaptures.black += captureTotals.black;
-        aggregateCaptures.white += captureTotals.white;
-        removedStones.push(...capturedThisPass);
-        applyGravity();
-        loopGuard += 1;
+
+        totals.totalRemoved += result.totalRemoved;
+        totals.captureTotals.black += result.captureTotals.black;
+        totals.captureTotals.white += result.captureTotals.white;
+        totals.removedStones.push(...result.removedStones);
+
+        stageCaptureHighlight(result.groups);
+
+        setTimeout(() => {
+            clearCaptureHighlights(result.groups);
+            result.groups.forEach(group => {
+                group.captured.forEach(cell => {
+                    board[cell.row][cell.col] = 0;
+                });
+            });
+            applyGravity();
+            processLoop();
+        }, CAPTURE_HIGHLIGHT_DURATION);
     }
 
-    return {
-        totalRemoved,
-        captureTotals: aggregateCaptures,
-        removedStones
-    };
+    processLoop();
 }
 
 function resolveCapturesOnce() {
     const visited = new Set();
-    let removed = 0;
     const captureTotals = { black: 0, white: 0 };
     const removedStones = [];
+    const groups = [];
+    let removed = 0;
 
     for (let row = 0; row < ROWS; row += 1) {
         for (let col = 0; col < COLS; col += 1) {
@@ -533,21 +768,168 @@ function resolveCapturesOnce() {
 
             const { stones, liberties } = evaluateGroup(row, col, stone, visited);
             if (liberties === 0) {
-                stones.forEach(({ row: r, col: c }) => {
-                    board[r][c] = 0;
-                    removedStones.push({ row: r, col: c, color: stone });
+                const capturingColor = stone === 1 ? 2 : 1;
+                const capturedGroup = stones.map(cell => ({ ...cell }));
+                groups.push({
+                    captured: capturedGroup,
+                    capturing: collectCapturingStones(capturedGroup, capturingColor),
+                    capturedColor: stone,
+                    capturingColor
                 });
-                removed += stones.length;
+                capturedGroup.forEach(capturedCell => {
+                    removedStones.push({ ...capturedCell, color: stone });
+                });
+                removed += capturedGroup.length;
                 if (stone === 1) {
-                    captureTotals.white += stones.length;
+                    captureTotals.white += capturedGroup.length;
                 } else {
-                    captureTotals.black += stones.length;
+                    captureTotals.black += capturedGroup.length;
                 }
             }
         }
     }
 
-    return { removed, captureTotals, removedStones };
+    return {
+        groups,
+        totalRemoved: removed,
+        captureTotals,
+        removedStones
+    };
+}
+
+function collectCapturingStones(capturedStones, capturingColor) {
+    const unique = new Set();
+    const result = [];
+    capturedStones.forEach(({ row, col }) => {
+        DIRECTIONS.forEach(([dRow, dCol]) => {
+            const targetRow = row + dRow;
+            const targetCol = col + dCol;
+            if (targetRow < 0 || targetRow >= ROWS || targetCol < 0 || targetCol >= COLS) {
+                return;
+            }
+            if (board[targetRow][targetCol] !== capturingColor) {
+                return;
+            }
+            const key = `${targetRow},${targetCol}`;
+            if (unique.has(key)) {
+                return;
+            }
+            unique.add(key);
+            result.push({ row: targetRow, col: targetCol, color: capturingColor });
+        });
+    });
+    return result;
+}
+
+function stageCaptureHighlight(groups) {
+    const startedAt = performance.now();
+    groups.forEach(group => {
+        const groupId = ++captureGroupSequence;
+        group.groupId = groupId;
+        group.startedAt = startedAt;
+        group.captured.forEach(cell => {
+            captureHighlights.set(`${cell.row},${cell.col}`, {
+                type: 'captured',
+                startTime: startedAt,
+                duration: CAPTURE_HIGHLIGHT_DURATION,
+                groupId
+            });
+        });
+        group.capturing.forEach(cell => {
+            captureHighlights.set(`${cell.row},${cell.col}`, {
+                type: 'capturing',
+                startTime: startedAt,
+                duration: CAPTURE_HIGHLIGHT_DURATION,
+                groupId,
+                capturingColor: group.capturingColor
+            });
+        });
+        stageCaptureLineEffect(group);
+    });
+}
+
+function stageCaptureLineEffect(group) {
+    if (!group || !Array.isArray(group.capturing) || group.capturing.length < 2) {
+        return;
+    }
+
+    const points = [];
+    const seen = new Set();
+    group.capturing.forEach(cell => {
+        const { x, y } = boardToCanvasPosition(cell.row, cell.col);
+        const key = `${x.toFixed(2)},${y.toFixed(2)}`;
+        if (seen.has(key)) {
+            return;
+        }
+        seen.add(key);
+        points.push({ x, y });
+    });
+
+    if (points.length < 2) {
+        return;
+    }
+
+    const centroid = points.reduce((acc, point) => {
+        acc.x += point.x;
+        acc.y += point.y;
+        return acc;
+    }, { x: 0, y: 0 });
+    centroid.x /= points.length;
+    centroid.y /= points.length;
+
+    const sorted = points.slice().sort((a, b) => {
+        const angleA = Math.atan2(a.y - centroid.y, a.x - centroid.x);
+        const angleB = Math.atan2(b.y - centroid.y, b.x - centroid.x);
+        return angleA - angleB;
+    });
+
+    if (sorted.length < 2) {
+        return;
+    }
+
+    const segments = [];
+    let totalLength = 0;
+    for (let index = 0; index < sorted.length; index += 1) {
+        const from = sorted[index];
+        const to = sorted[(index + 1) % sorted.length];
+        const length = Math.hypot(to.x - from.x, to.y - from.y);
+        if (length === 0) {
+            continue;
+        }
+        segments.push({ from, to, length });
+        totalLength += length;
+    }
+
+    if (segments.length === 0 || totalLength === 0) {
+        return;
+    }
+
+    const colorConfig = CAPTURE_LINE_COLORS[group.capturingColor] || CAPTURE_LINE_COLORS[1];
+
+    captureLineEffects.set(group.groupId, {
+        groupId: group.groupId,
+        startTime: group.startedAt,
+        duration: CAPTURE_LINE_ANIM_DURATION,
+        segments,
+        totalLength,
+        strokeStyle: colorConfig.stroke,
+        shadowColor: colorConfig.shadow,
+        lineWidth: CELL_SIZE * 0.18
+    });
+}
+
+function clearCaptureHighlights(groups) {
+    groups.forEach(group => {
+        if (group.groupId) {
+            captureLineEffects.delete(group.groupId);
+        }
+        group.captured.forEach(cell => {
+            captureHighlights.delete(`${cell.row},${cell.col}`);
+        });
+        group.capturing.forEach(cell => {
+            captureHighlights.delete(`${cell.row},${cell.col}`);
+        });
+    });
 }
 
 function boardToCanvasPosition(row, col) {
@@ -901,6 +1283,7 @@ function bindHoldButton(button, action, options = {}) {
             if (button.disabled) {
                 return;
             }
+            lastPointerDownTime = performance.now();
             if (typeof button.setPointerCapture === 'function') {
                 try {
                     button.setPointerCapture(event.pointerId);
@@ -924,6 +1307,7 @@ function bindHoldButton(button, action, options = {}) {
             if (button.disabled) {
                 return;
             }
+            lastPointerDownTime = performance.now();
             startRunner(event);
         }, { passive: false });
         button.addEventListener('touchend', () => {
@@ -936,6 +1320,11 @@ function bindHoldButton(button, action, options = {}) {
             if (button.disabled) {
                 return;
             }
+            const now = performance.now();
+            if (now - lastPointerDownTime <= POINTER_CLICK_SUPPRESS_MS) {
+                return;
+            }
+            lastPointerDownTime = now;
             startRunner(event);
         });
         ['mouseup', 'mouseleave', 'blur'].forEach(type => {
@@ -946,7 +1335,9 @@ function bindHoldButton(button, action, options = {}) {
     }
 
     button.addEventListener('click', event => {
-        if (suppressClick) {
+        const now = performance.now();
+        const recentlyPointer = now - lastPointerDownTime <= POINTER_CLICK_SUPPRESS_MS;
+        if (suppressClick || recentlyPointer) {
             suppressClick = false;
             event.preventDefault();
             return;
@@ -1042,6 +1433,7 @@ function draw() {
         drawGhost(currentPiece);
         drawPiece(currentPiece);
     }
+    drawCaptureLineEffects();
     drawEffects();
 }
 
@@ -1051,6 +1443,65 @@ function drawBoardBackground() {
     gradient.addColorStop(1, 'rgba(214, 176, 128, 0.92)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, BOARD_PIXEL_WIDTH, BOARD_PIXEL_HEIGHT);
+}
+
+function drawCaptureLineEffects() {
+    if (captureLineEffects.size === 0) {
+        return;
+    }
+
+    const now = performance.now();
+    const finished = [];
+
+    captureLineEffects.forEach((effect, groupId) => {
+        const elapsed = now - effect.startTime;
+        const progress = Math.min(elapsed / effect.duration, 1);
+        if (progress <= 0) {
+            return;
+        }
+
+        const easedProgress = progress < 1 ? progress * progress * (3 - 2 * progress) : 1;
+        const totalToDraw = effect.totalLength * easedProgress;
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = effect.strokeStyle;
+        ctx.lineWidth = effect.lineWidth * (0.85 + 0.35 * (1 - progress));
+        ctx.shadowColor = effect.shadowColor;
+        ctx.shadowBlur = effect.lineWidth * 1.4;
+        ctx.globalAlpha = 0.9;
+
+        ctx.beginPath();
+        let remaining = totalToDraw;
+        let started = false;
+        for (const segment of effect.segments) {
+            if (!started) {
+                ctx.moveTo(segment.from.x, segment.from.y);
+                started = true;
+            }
+            if (remaining >= segment.length) {
+                ctx.lineTo(segment.to.x, segment.to.y);
+                remaining -= segment.length;
+            } else {
+                const t = segment.length === 0 ? 0 : remaining / segment.length;
+                const partialX = segment.from.x + (segment.to.x - segment.from.x) * t;
+                const partialY = segment.from.y + (segment.to.y - segment.from.y) * t;
+                ctx.lineTo(partialX, partialY);
+                break;
+            }
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        if (progress >= 1) {
+            finished.push(groupId);
+        }
+    });
+
+    finished.forEach(groupId => {
+        captureLineEffects.delete(groupId);
+    });
 }
 
 function drawGridLines() {
@@ -1117,7 +1568,59 @@ function drawGhost(piece) {
 function drawStoneOnBoard(row, col, color, alpha) {
     const cx = GRID_MARGIN + col * CELL_SIZE;
     const cy = GRID_MARGIN + row * CELL_SIZE;
+    const highlight = captureHighlights.get(`${row},${col}`);
+    if (highlight) {
+        drawHighlightedStone(ctx, cx, cy, CELL_SIZE * 0.42, color, highlight);
+        return;
+    }
     drawStone(ctx, cx, cy, CELL_SIZE * 0.42, color, alpha);
+}
+
+function drawHighlightedStone(context, cx, cy, radius, baseColor, highlight) {
+    const now = performance.now();
+    const elapsed = now - (highlight.startTime || 0);
+    const colorProgress = Math.min(elapsed / CAPTURE_COLOR_ANIM_DURATION, 1);
+    const glowProgress = Math.min(elapsed / CAPTURE_LINE_ANIM_DURATION, 1);
+
+    drawStone(context, cx, cy, radius, baseColor, 1);
+
+    context.save();
+    const gradient = context.createRadialGradient(
+        cx - radius * 0.35,
+        cy - radius * 0.35,
+        radius * 0.15,
+        cx,
+        cy,
+        radius
+    );
+    if (highlight.type === 'captured') {
+        gradient.addColorStop(0, '#ffe8c2');
+        gradient.addColorStop(1, '#ff824d');
+    } else {
+        gradient.addColorStop(0, '#c9f0ff');
+        gradient.addColorStop(1, '#3ec5ff');
+    }
+    const alpha = highlight.type === 'captured' ? colorProgress : Math.max(glowProgress * 0.9, 0.3);
+    context.globalCompositeOperation = 'lighter';
+    context.globalAlpha = alpha;
+    context.fillStyle = gradient;
+    context.shadowColor = highlight.type === 'captured' ? 'rgba(255, 150, 60, 0.8)' : 'rgba(90, 200, 255, 0.75)';
+    context.shadowBlur = radius * (1.2 + glowProgress * 0.6);
+    context.beginPath();
+    context.arc(cx, cy, radius, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+
+    if (highlight.type === 'captured' && colorProgress < 1) {
+        context.save();
+        context.globalCompositeOperation = 'source-atop';
+        context.globalAlpha = colorProgress * 0.5;
+        context.fillStyle = 'rgba(255, 180, 120, 0.8)';
+        context.beginPath();
+        context.arc(cx, cy, radius, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+    }
 }
 
 function drawStone(context, cx, cy, radius, color, alpha = 1) {
@@ -1221,6 +1724,12 @@ function handleKeyDown(event) {
         return;
     }
 
+    const target = event.target;
+    const tagName = target && target.tagName ? target.tagName.toUpperCase() : '';
+    if (tagName === 'INPUT' || tagName === 'TEXTAREA') {
+        return;
+    }
+
     if (!gameActive || paused || !currentPiece) {
         return;
     }
@@ -1259,11 +1768,11 @@ function togglePause(forceState) {
     }
     const targetState = typeof forceState === 'boolean' ? forceState : !paused;
     paused = targetState;
-    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+    pauseBtn.textContent = paused ? '再開' : 'ポーズ';
     if (paused) {
-        setStatusMessage('Paused. Press P or Resume.');
+        setStatusMessage('一時停止中。Pキーか再開ボタンで続行。');
     } else {
-        setStatusMessage('Resume play.');
+        setStatusMessage('再開します。');
         dropAccumulator = 0;
         lastFrameTime = null;
     }
@@ -1274,10 +1783,19 @@ document.addEventListener('keydown', handleKeyDown);
 if (headerStartBtn) {
     const triggerStart = () => {
         startGame();
+        headerStartBtn.blur();
+        if (startBtn) {
+            startBtn.blur();
+        }
     };
     headerStartBtn.addEventListener('click', event => {
         event.preventDefault();
         triggerStart();
+    });
+    headerStartBtn.addEventListener('keydown', event => {
+        if (event.code === 'Space' || event.code === 'Enter') {
+            event.preventDefault();
+        }
     });
     if (SUPPORTS_POINTER) {
         headerStartBtn.addEventListener('pointerdown', event => {
@@ -1293,14 +1811,30 @@ if (headerStartBtn) {
         }, { passive: false });
     }
 }
-startBtn.addEventListener('click', () => {
+startBtn.addEventListener('click', event => {
+    event.preventDefault();
     startGame();
+    startBtn.blur();
+    if (headerStartBtn) {
+        headerStartBtn.blur();
+    }
+});
+startBtn.addEventListener('keydown', event => {
+    if (event.code === 'Space' || event.code === 'Enter') {
+        event.preventDefault();
+    }
 });
 pauseBtn.addEventListener('click', () => {
     togglePause();
 });
-restartBtn.addEventListener('click', () => {
+restartBtn.addEventListener('click', event => {
+    event.preventDefault();
     startGame();
+    restartBtn.blur();
+    startBtn.blur();
+    if (headerStartBtn) {
+        headerStartBtn.blur();
+    }
 });
 document.addEventListener('visibilitychange', () => {
     if (document.hidden && gameActive && !paused) {
@@ -1334,3 +1868,4 @@ requestAnimationFrame(gameLoop);
 
 updateStats();
 updatePreview();
+
