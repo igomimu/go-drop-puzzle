@@ -8,3 +8,10 @@ venv
 __pycache__
 *.pyc
 *.zip
+
+# CrazyGames 投稿作業の残骸 (2026-08-09)
+# scripts/cg-*.cjs にアカウントのパスワードが平文で書かれており、
+# crazygames/ には認証状態(cg-auth-state.json)と26MBのスクショが入っている。
+# どちらもリポジトリに入れてはいけないので追跡しない。
+crazygames/
+scripts/cg-*.cjs
